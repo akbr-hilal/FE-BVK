@@ -15,7 +15,15 @@ const Login = () => {
     const initialValues = {
         email: "",
         password: "",
+        isGoogle: false,
     };
+
+    const [profileGoogle, setProfileGoogle] = useState({
+        email: "",
+        name: "",
+        idGoogle: "",
+        isGoogle: true,
+    });
 
     const validationSchema = Yup.object({
         email: Yup.string()
@@ -55,57 +63,36 @@ const Login = () => {
 
     const dispatch = useDispatch(); // Inisialisasi dispatch
 
-    const [accessToken, setAccessToken] = useState(
-        sessionStorage.getItem("accessToken")
-    );
-
     // Set expired time in seconds
     const EXPIRY_TIME = 3600; // 1 hour
 
     // function to handle login success via oauth
-    const handleLoginSuccess = async (response) => {
+    const handleLoginGoogleSuccess = async (response) => {
         console.log("Resp Login Google: ", response);
         const token = response.access_token;
 
-        // Send the token to the backend for validation
         try {
-            const response = await API.post("/auth/login/google", {
-                token,
-            });
-            console.log("response: ", response);
-            if (response.status === 200) {
-                const userProfile = response.data; // Ambil profil pengguna dari respons
-                dispatch(setProfile(userProfile)); // Simpan profil ke redux
-                sessionStorage.setItem("profile", JSON.stringify(userProfile)); // Simpan profil ke sessionStorage
-                setAccessToken(token);
-                sessionStorage.setItem("accessToken", token);
-                sessionStorage.setItem(
-                    "tokenExpiry",
-                    Date.now() + EXPIRY_TIME * 1000
-                ); // Store expiry time
-                navigate("/dashboard"); // Ganti dengan rute yang sesuai
-            } 
-            // else {
-            //     console.error("User not found in database");
-            // }
+            fetchUserProfileGoogle(token);  
         } catch (error) {
             console.error("Token validation failed:", error);
         }
     };
 
     // function to handle login error
-    const handleLoginError = (error) => {
+    const handleLoginGoogleError = (error) => {
         console.error("Login Failed:", error);
     };
 
     // function to login with google
-    const login = useGoogleLogin({
-        onSuccess: handleLoginSuccess,
-        onError: handleLoginError,
+    const hangleGoogleLogin = useGoogleLogin({
+        onSuccess: handleLoginGoogleSuccess,
+        onError: handleLoginGoogleError,
     });
 
     // function to fetch user profile
-    const fetchUserProfile = async (token) => {
+    const fetchUserProfileGoogle = async (token) => {
+        sessionStorage.setItem("accessToken", token);
+        sessionStorage.setItem("tokenExpiry", Date.now() + EXPIRY_TIME * 1000); // Store expiry time
         try {
             const res = await axios.get(
                 "https://www.googleapis.com/oauth2/v1/userinfo",
@@ -116,11 +103,15 @@ const Login = () => {
                     },
                 }
             );
-
-            if (res.data) {
+            console.log("res googlapis: ", res);
+            if (res.status === 200) {
                 dispatch(setProfile(res.data));
-                sessionStorage.setItem("profile", JSON.stringify(res.data)); // Save profile to sessionStorage
-                console.log("Profile fetched: ", res.data);
+                setProfileGoogle({
+                    email: res.data.email,
+                    name: res.data.name,
+                    idGoogle: res.data.id,
+                    isGoogle: true,
+                });
             } else {
                 console.error("No profile data received");
             }
@@ -129,21 +120,41 @@ const Login = () => {
         }
     };
 
+    useEffect(() => {
+        if (profileGoogle.email) {
+            validateLoginGoogle();
+        }
+    }, [profileGoogle]);
+
+    const validateLoginGoogle = async () => {
+        console.log("profile Google: ", profileGoogle);
+
+        try {
+            const res = await API.post("/auth/login", profileGoogle);
+            if (res.status === 200) {
+                console.log("success: ", res);
+            }
+        } catch (error) {
+            toast.error(error.response.data.error + " " + profileGoogle.email);
+            sessionStorage.clear();
+        }
+    };
+
     // useEffect to fetch profile when token exists
     useEffect(() => {
         const tokenExpiry = sessionStorage.getItem("tokenExpiry");
         const now = Date.now();
-
+        const accessToken = sessionStorage.getItem("accessToken");
+        console.log("accessToken: ", accessToken);
         // Check if token is expired
         if (tokenExpiry && now < tokenExpiry) {
             if (accessToken) {
-                fetchUserProfile(accessToken);
+                fetchUserProfileGoogle(accessToken);
             }
         } else {
-            // Clear sessionStorage if expired
             sessionStorage.clear();
         }
-    }, [accessToken]);
+    }, []);
 
     return (
         <div className="min-h-screen flex items-center justify-center">
@@ -221,7 +232,7 @@ const Login = () => {
                         <button
                             className="bg-white border border-2xl text-gray-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex justify-center items-center w-[220px]"
                             type="submit"
-                            onClick={() => login()}
+                            onClick={() => hangleGoogleLogin()}
                         >
                             <FcGoogle className="me-2" />
                             Login with Google
