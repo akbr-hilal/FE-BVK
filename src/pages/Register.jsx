@@ -3,15 +3,12 @@ import { FcGoogle } from "react-icons/fc";
 import { Bounce, toast, ToastContainer } from "react-toastify";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import { API } from "../config/axiosConfig";
-import { useDispatch } from "react-redux";
-import { setProfile } from "../store/userSlice";
 import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useEffect, useState } from "react";
 import axios from "axios";
 
 const Register = () => {
-    const dispatch = useDispatch(); // Inisialisasi dispatch
     let navigate = useNavigate();
 
     // State untuk menyimpan data form
@@ -114,7 +111,6 @@ const Register = () => {
             );
             console.log("res googlapis: ", res);
             if (res.status === 200) {
-                dispatch(setProfile(res.data));
                 setProfileGoogle({
                     email: res.data.email,
                     name: res.data.name,

@@ -5,13 +5,16 @@ import { useEffect, useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import { useDispatch } from "react-redux";
-import { setProfile } from "../store/userSlice";
+import { setAuthToken, setUser } from "../store/authSlice";
 import { useNavigate } from "react-router-dom";
 import { API } from "../config/axiosConfig";
 import { Bounce, ToastContainer, toast } from "react-toastify";
 
 const Login = () => {
-    let navigate = useNavigate();
+    const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const EXPIRY_TIME = 3600;
+
     const initialValues = {
         email: "",
         password: "",
@@ -36,24 +39,27 @@ const Login = () => {
 
     const onSubmit = async (values) => {
         try {
-            const response = await API.post("/auth/login", values);
-            console.log("response: ", response);
-            // Jika login berhasil
-            if (response.status === 200) {
-                const userProfile = response.data;
-                dispatch(setProfile(userProfile));
-                sessionStorage.setItem("profile", JSON.stringify(userProfile));
-                navigate("/dashboard");
+            const resp = await API.post("/auth/login", values);
+            if (resp.status === 200) {
+                const token = resp.data;
+                sessionStorage.setItem("tokenJwt", token);
+                dispatch(setAuthToken(token));
+                axios.defaults.headers.common[
+                    "Authorization"
+                ] = `Bearer ${token}`;
+                navigate("/dashboard"); // Navigate to the dashboard upon successful login
             }
         } catch (error) {
-            console.error("Login failed:", error);
-            if (error.response) {
-                console.log("response: ", error.response.data.error);
-                toast.error(error.response.data.error);
-            } else {
-                console.log("Kesalahan: ", error.message);
-                toast.error("Terjadi kesalahan, silakan coba lagi.");
-            }
+            handleLoginError(error);
+        }
+    };
+
+    const handleLoginError = (error) => {
+        console.error("Login failed:", error);
+        if (error.response) {
+            toast.error(error.response.data.error + ". Please Register");
+        } else {
+            toast.error("Terjadi kesalahan, silakan coba lagi.");
         }
     };
 
@@ -61,38 +67,23 @@ const Login = () => {
         navigate("/register");
     };
 
-    const dispatch = useDispatch(); // Inisialisasi dispatch
-
-    // Set expired time in seconds
-    const EXPIRY_TIME = 3600; // 1 hour
-
-    // function to handle login success via oauth
     const handleLoginGoogleSuccess = async (response) => {
-        console.log("Resp Login Google: ", response);
         const token = response.access_token;
-
-        try {
-            fetchUserProfileGoogle(token);  
-        } catch (error) {
-            console.error("Token validation failed:", error);
-        }
+        fetchUserProfileGoogle(token);
     };
 
-    // function to handle login error
     const handleLoginGoogleError = (error) => {
         console.error("Login Failed:", error);
     };
 
-    // function to login with google
     const hangleGoogleLogin = useGoogleLogin({
         onSuccess: handleLoginGoogleSuccess,
         onError: handleLoginGoogleError,
     });
 
-    // function to fetch user profile
     const fetchUserProfileGoogle = async (token) => {
         sessionStorage.setItem("accessToken", token);
-        sessionStorage.setItem("tokenExpiry", Date.now() + EXPIRY_TIME * 1000); // Store expiry time
+        sessionStorage.setItem("tokenExpiry", Date.now() + EXPIRY_TIME * 1000);
         try {
             const res = await axios.get(
                 "https://www.googleapis.com/oauth2/v1/userinfo",
@@ -103,17 +94,13 @@ const Login = () => {
                     },
                 }
             );
-            console.log("res googlapis: ", res);
             if (res.status === 200) {
-                dispatch(setProfile(res.data));
                 setProfileGoogle({
                     email: res.data.email,
                     name: res.data.name,
                     idGoogle: res.data.id,
                     isGoogle: true,
                 });
-            } else {
-                console.error("No profile data received");
             }
         } catch (error) {
             console.error("Failed to fetch user profile:", error);
@@ -127,30 +114,32 @@ const Login = () => {
     }, [profileGoogle]);
 
     const validateLoginGoogle = async () => {
-        console.log("profile Google: ", profileGoogle);
-
         try {
             const res = await API.post("/auth/login", profileGoogle);
             if (res.status === 200) {
-                console.log("success: ", res);
+                const token = res.data.token;
+                const name = res.data.name;
+                sessionStorage.setItem("tokenJwt", token);
+                dispatch(setAuthToken(token));
+                dispatch(setUser(name))
+                axios.defaults.headers.common[
+                    "Authorization"
+                ] = `Bearer ${token}`;
+                navigate("/dashboard"); // Navigate to dashboard on success
             }
         } catch (error) {
-            toast.error(error.response.data.error + " " + profileGoogle.email);
+            handleLoginError(error);
             sessionStorage.clear();
         }
     };
 
-    // useEffect to fetch profile when token exists
+    // Check token expiration
     useEffect(() => {
         const tokenExpiry = sessionStorage.getItem("tokenExpiry");
         const now = Date.now();
         const accessToken = sessionStorage.getItem("accessToken");
-        console.log("accessToken: ", accessToken);
-        // Check if token is expired
-        if (tokenExpiry && now < tokenExpiry) {
-            if (accessToken) {
-                fetchUserProfileGoogle(accessToken);
-            }
+        if (tokenExpiry && now < tokenExpiry && accessToken) {
+            fetchUserProfileGoogle(accessToken);
         } else {
             sessionStorage.clear();
         }
@@ -165,7 +154,7 @@ const Login = () => {
                     validationSchema={validationSchema}
                     onSubmit={onSubmit}
                 >
-                    <Form className=" mb-4">
+                    <Form className="mb-4">
                         <div className="mb-4">
                             <label
                                 className="block text-gray-700 text-sm font-bold mb-2"
@@ -216,15 +205,13 @@ const Login = () => {
                 </Formik>
                 <div className="flex items-center justify-center mb-2">
                     <div className="px-5">
-                        <hr className="border-t border-gray-300 w-[100px] " />{" "}
-                        {/* Menambahkan kelas border dan width */}
+                        <hr className="border-t border-gray-300 w-[100px]" />
                     </div>
-                    <div className=" text-center">
+                    <div className="text-center">
                         <div>Atau</div>
                     </div>
                     <div className="px-5">
-                        <hr className="border-t border-gray-300 w-[100px]" />{" "}
-                        {/* Menambahkan kelas border dan width */}
+                        <hr className="border-t border-gray-300 w-[100px]" />
                     </div>
                 </div>
                 <div className="text-center">
@@ -232,10 +219,9 @@ const Login = () => {
                         <button
                             className="bg-white border border-2xl text-gray-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex justify-center items-center w-[220px]"
                             type="submit"
-                            onClick={() => hangleGoogleLogin()}
+                            onClick={hangleGoogleLogin}
                         >
-                            <FcGoogle className="me-2" />
-                            Login with Google
+                            <FcGoogle className="me-2" /> Login with Google
                         </button>
                     </div>
                     <div>
@@ -243,7 +229,7 @@ const Login = () => {
                             Belum punya akun? Ayo{" "}
                             <span
                                 className="text-blue-500 font-bold cursor-pointer"
-                                onClick={() => handleRegister()}
+                                onClick={handleRegister}
                             >
                                 daftar
                             </span>
@@ -261,7 +247,6 @@ const Login = () => {
                 pauseOnFocusLoss
                 draggable
                 pauseOnHover
-                theme="light"
                 transition={Bounce}
             />
         </div>
