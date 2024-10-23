@@ -41,9 +41,11 @@ const Login = () => {
         try {
             const resp = await API.post("/auth/login", values);
             if (resp.status === 200) {
-                const token = resp.data;
+                const token = resp.data.token;
+                const name = resp.data.name;
                 sessionStorage.setItem("tokenJwt", token);
                 dispatch(setAuthToken(token));
+                dispatch(setUser(name));
                 axios.defaults.headers.common[
                     "Authorization"
                 ] = `Bearer ${token}`;
@@ -57,7 +59,7 @@ const Login = () => {
     const handleLoginError = (error) => {
         console.error("Login failed:", error);
         if (error.response) {
-            toast.error(error.response.data.error + ". Please Register");
+            toast.error(error.response.data.error);
         } else {
             toast.error("Terjadi kesalahan, silakan coba lagi.");
         }

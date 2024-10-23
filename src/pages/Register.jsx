@@ -55,10 +55,10 @@ const Register = () => {
             console.log("response: ", response);
             // Jika login berhasil
             if (response.status === 200) {
-                // const userProfile = response.data;
-                // dispatch(setProfile(userProfile));
-                // sessionStorage.setItem("profile", JSON.stringify(userProfile));
                 toast.success(response.data);
+                setTimeout(() => {
+                    navigate("/")
+                }, 3000)
             }
         } catch (error) {
             console.error("Login failed:", error);
@@ -132,6 +132,9 @@ const Register = () => {
             console.log("resp register google: ", resp);
             if (resp.status === 200) {
                 toast.success(resp.data)
+                setTimeout(() => {
+                    navigate("/")
+                }, 3000)
             }
         } catch (error) {
             console.error("error save data user google: ", error);
@@ -147,7 +150,7 @@ const Register = () => {
     return (
         <div className="min-h-screen flex items-center justify-center">
             <div className="w-full max-w-md bg-white shadow-md rounded px-8 pt-6 pb-8">
-                <h1 className="mb-2 font-bold text-3xl text-center">Login</h1>
+                <h1 className="mb-2 font-bold text-3xl text-center">Register</h1>
                 <Formik
                     initialValues={initialValues}
                     validationSchema={validationSchema}
@@ -260,7 +263,7 @@ const Register = () => {
             </div>
             <ToastContainer
                 position="bottom-right"
-                autoClose={3000}
+                autoClose={2500}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick
